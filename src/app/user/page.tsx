@@ -47,6 +47,7 @@ export default function UserDashboard() {
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [isWithinRadius, setIsWithinRadius] = useState<boolean | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingCamera, setIsLoadingCamera] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -114,52 +115,72 @@ export default function UserDashboard() {
 
   const startCamera = async () => {
     try {
+      setIsLoadingCamera(true)
+      setError('')
+
       // Check if camera is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Kamera tidak didukung di browser ini')
       }
 
-      // Check permissions first
-      if (navigator.permissions) {
-        const permission = await navigator.permissions.query({ name: 'camera' as PermissionName })
-        if (permission.state === 'denied') {
-          throw new Error('Akses kamera ditolak. Izinkan kamera di browser settings.')
-        }
-      }
-
-      // Request camera permission
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'user',
-          width: { ideal: 640, max: 1280 },
-          height: { ideal: 480, max: 720 }
+      // Request camera permission with simpler constraints for mobile compatibility
+      const constraints = {
+        video: {
+          facingMode: 'user', // Front camera for selfie
+          width: { ideal: 640 },
+          height: { ideal: 480 }
         },
         audio: false
-      })
+      }
+
+      console.log('Requesting camera access with constraints:', constraints)
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      
+      console.log('Camera stream obtained:', stream)
       
       if (videoRef.current) {
+        // Ensure video element is ready
         videoRef.current.srcObject = stream
         streamRef.current = stream
+        
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => {
+              console.log('Video metadata loaded')
+              resolve(void 0)
+            }
+          }
+        })
+        
         setIsCameraOn(true)
         setError('')
+      } else {
+        throw new Error('Video element tidak tersedia')
       }
     } catch (err: any) {
       console.error('Camera error:', err)
       let errorMessage = 'Tidak dapat mengakses kamera.'
       
-      if (err.name === 'NotAllowedError') {
-        errorMessage = 'Akses kamera ditolak. Izinkan kamera di browser settings dan refresh halaman.'
-      } else if (err.name === 'NotFoundError') {
-        errorMessage = 'Kamera tidak ditemukan. Pastikan HP memiliki kamera.'
-      } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Kamera tidak didukung di browser ini.'
-      } else if (err.name === 'NotReadableError') {
-        errorMessage = 'Kamera sedang digunakan aplikasi lain.'
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMessage = 'Akses kamera ditolak. Berikan izin kamera di browser dan coba lagi.'
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errorMessage = 'Kamera tidak ditemukan. Pastikan perangkat memiliki kamera.'
+      } else if (err.name === 'NotSupportedError' || err.name === 'NotSupportedError') {
+        errorMessage = 'Kamera tidak didukung di browser ini. Coba browser lain.'
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        errorMessage = 'Kamera sedang digunakan aplikasi lain atau ada masalah hardware.'
+      } else if (err.name === 'OverconstrainedError') {
+        errorMessage = 'Kamera tidak mendukung pengaturan yang diminta.'
+      } else if (err.name === 'SecurityError') {
+        errorMessage = 'Akses kamera diblokir karena masalah keamanan. Pastikan menggunakan HTTPS.'
       } else if (err.message) {
-        errorMessage = err.message
+        errorMessage = `Error kamera: ${err.message}`
       }
       
       setError(errorMessage)
+    } finally {
+      setIsLoadingCamera(false)
     }
   }
 
@@ -350,19 +371,25 @@ export default function UserDashboard() {
                   <CardTitle>Foto Selfie</CardTitle>
                   <CardDescription>
                     Ambil foto selfie untuk presensi. Pastikan memberikan izin kamera dan lokasi di browser.
+                    <br />
+                    <small className="text-gray-500">
+                      Tips: Gunakan browser Chrome/Safari, pastikan HTTPS, dan berikan izin kamera saat diminta.
+                    </small>
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {/* Camera View */}
-                    <div className="relative bg-black rounded-lg overflow-hidden" style={{ minHeight: '300px' }}>
+                    <div className="relative bg-black rounded-lg overflow-hidden" style={{ minHeight: '300px', aspectRatio: '4/3' }}>
                       {isCameraOn ? (
                         <video
                           ref={videoRef}
                           autoPlay
                           playsInline
                           muted
+                          controls={false}
                           className="w-full h-full object-cover"
+                          style={{ transform: 'scaleX(-1)' }} // Mirror effect for selfie
                         />
                       ) : capturedImage ? (
                         <img
@@ -372,7 +399,10 @@ export default function UserDashboard() {
                         />
                       ) : (
                         <div className="flex items-center justify-center h-full min-h-[300px]">
-                          <CameraOff className="w-16 h-16 text-gray-400" />
+                          <div className="text-center">
+                            <CameraOff className="w-16 h-16 text-gray-400 mx-auto mb-2" />
+                            <p className="text-gray-400 text-sm">Kamera belum diaktifkan</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -384,9 +414,18 @@ export default function UserDashboard() {
                     <div className="space-y-2">
                       <div className="flex space-x-2">
                         {!isCameraOn && !capturedImage && (
-                          <Button onClick={startCamera} className="flex-1">
-                            <Camera className="w-4 h-4 mr-2" />
-                            Buka Kamera
+                          <Button onClick={startCamera} className="flex-1" disabled={isLoadingCamera}>
+                            {isLoadingCamera ? (
+                              <>
+                                <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Membuka Kamera...
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-4 h-4 mr-2" />
+                                Buka Kamera
+                              </>
+                            )}
                           </Button>
                         )}
                         

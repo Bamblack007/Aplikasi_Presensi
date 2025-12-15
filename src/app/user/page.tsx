@@ -169,6 +169,22 @@ export default function UserDashboard() {
       console.log('Camera stream obtained:', stream)
       
       if (videoRef.current) {
+        // Wait for video element to be fully ready
+        await new Promise(resolve => {
+          if (videoRef.current) {
+            // If already ready, resolve immediately
+            resolve(void 0)
+          } else {
+            // Wait for next tick to ensure ref is set
+            setTimeout(resolve, 0)
+          }
+        })
+        
+        // Double check ref is available
+        if (!videoRef.current) {
+          throw new Error('Video element tidak tersedia setelah pengecekan')
+        }
+        
         // Ensure video element is ready
         videoRef.current.srcObject = stream
         streamRef.current = stream
@@ -503,29 +519,30 @@ export default function UserDashboard() {
                   <div className="space-y-4">
                     {/* Camera View */}
                     <div className="relative bg-black rounded-lg overflow-hidden" style={{ minHeight: '300px', aspectRatio: '4/3' }}>
-                      {isCameraOn ? (
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          controls={false}
-                          className="w-full h-full object-cover"
-                          style={{ transform: 'scaleX(-1)' }} // Mirror effect for selfie
-                          onError={(e) => console.error('Video error:', e)}
-                          onLoadStart={() => console.log('Video load started')}
-                          onLoadedData={() => console.log('Video data loaded')}
-                          onCanPlay={() => console.log('Video can play')}
-                          onPlay={() => console.log('Video started playing')}
-                          onPause={() => console.log('Video paused')}
-                        />
-                      ) : capturedImage ? (
+                      {/* Always render video element but hide when not in use */}
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        controls={false}
+                        className={`w-full h-full object-cover ${isCameraOn ? '' : 'hidden'}`}
+                        style={{ transform: isCameraOn ? 'scaleX(-1)' : 'none' }} // Mirror effect for selfie
+                        onError={(e) => console.error('Video error:', e)}
+                        onLoadStart={() => console.log('Video load started')}
+                        onLoadedData={() => console.log('Video data loaded')}
+                        onCanPlay={() => console.log('Video can play')}
+                        onPlay={() => console.log('Video started playing')}
+                        onPause={() => console.log('Video paused')}
+                      />
+                      
+                      {capturedImage ? (
                         <img
                           src={capturedImage}
                           alt="Captured"
                           className="w-full h-full object-cover"
                         />
-                      ) : (
+                      ) : !isCameraOn ? (
                         <div className="flex items-center justify-center h-full min-h-[300px]">
                           <div className="text-center">
                             <CameraOff className="w-16 h-16 text-gray-400 mx-auto mb-2" />
@@ -534,7 +551,7 @@ export default function UserDashboard() {
                             </p>
                           </div>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                     
                     {/* Hidden canvas for photo capture */}

@@ -106,6 +106,12 @@ export default function UserDashboard() {
     }
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    window.location.href = '/'
+  }
+
   const startCamera = async () => {
     try {
       // Check if camera is supported

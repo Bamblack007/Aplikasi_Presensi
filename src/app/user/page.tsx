@@ -108,6 +108,12 @@ export default function UserDashboard() {
 
   const startCamera = async () => {
     try {
+      // Check if camera is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Kamera tidak didukung di browser ini')
+      }
+
+      // Request camera permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'user',
@@ -122,8 +128,21 @@ export default function UserDashboard() {
         setIsCameraOn(true)
         setError('')
       }
-    } catch (err) {
-      setError('Tidak dapat mengakses kamera. Pastikan kamera diizinkan.')
+    } catch (err: any) {
+      console.error('Camera error:', err)
+      let errorMessage = 'Tidak dapat mengakses kamera.'
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage = 'Akses kamera ditolak. Izinkan kamera di browser settings.'
+      } else if (err.name === 'NotFoundError') {
+        errorMessage = 'Kamera tidak ditemukan.'
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage = 'Kamera tidak didukung.'
+      } else if (err.name === 'NotReadableError') {
+        errorMessage = 'Kamera sedang digunakan aplikasi lain.'
+      }
+      
+      setError(errorMessage)
     }
   }
 
@@ -318,7 +337,9 @@ export default function UserDashboard() {
               <Card>
                 <CardHeader>
                   <CardTitle>Foto Selfie</CardTitle>
-                  <CardDescription>Ambil foto selfie untuk presensi</CardDescription>
+                  <CardDescription>
+                    Ambil foto selfie untuk presensi. Pastikan memberikan izin kamera dan lokasi di browser.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">

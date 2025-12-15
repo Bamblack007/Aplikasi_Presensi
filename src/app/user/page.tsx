@@ -519,7 +519,6 @@ export default function UserDashboard() {
                         className="hidden"
                       />
                     </div>
-                    </div>
                   </div>
                 </CardContent>
               </Card>

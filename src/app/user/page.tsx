@@ -46,7 +46,7 @@ export default function UserDashboard() {
   const [capturedImage, setCapturedImage] = useState<string>('')
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [isWithinRadius, setIsWithinRadius] = useState<boolean | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showFileUpload, setShowFileUpload] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -113,6 +113,14 @@ export default function UserDashboard() {
         throw new Error('Kamera tidak didukung di browser ini')
       }
 
+      // Check permissions first
+      if (navigator.permissions) {
+        const permission = await navigator.permissions.query({ name: 'camera' as PermissionName })
+        if (permission.state === 'denied') {
+          throw new Error('Akses kamera ditolak. Izinkan kamera di browser settings.')
+        }
+      }
+
       // Request camera permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
@@ -133,16 +141,21 @@ export default function UserDashboard() {
       let errorMessage = 'Tidak dapat mengakses kamera.'
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Akses kamera ditolak. Izinkan kamera di browser settings.'
+        errorMessage = 'Akses kamera ditolak. Izinkan kamera di browser settings dan refresh halaman.'
       } else if (err.name === 'NotFoundError') {
-        errorMessage = 'Kamera tidak ditemukan.'
+        errorMessage = 'Kamera tidak ditemukan. Pastikan HP memiliki kamera.'
       } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Kamera tidak didukung.'
+        errorMessage = 'Kamera tidak didukung di browser ini.'
       } else if (err.name === 'NotReadableError') {
         errorMessage = 'Kamera sedang digunakan aplikasi lain.'
+      } else if (err.message) {
+        errorMessage = err.message
       }
       
       setError(errorMessage)
+      
+      // Fallback: offer file upload
+      setShowFileUpload(true)
     }
   }
 
@@ -270,10 +283,17 @@ export default function UserDashboard() {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    window.location.href = '/'
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setCapturedImage(result)
+        setError('')
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
   if (isLoading) {
@@ -369,26 +389,42 @@ export default function UserDashboard() {
                     <canvas ref={canvasRef} className="hidden" />
                     
                     {/* Camera Controls */}
-                    <div className="flex space-x-2">
-                      {!isCameraOn && !capturedImage && (
-                        <Button onClick={startCamera} className="flex-1">
-                          <Camera className="w-4 h-4 mr-2" />
-                          Buka Kamera
-                        </Button>
-                      )}
+                    <div className="space-y-2">
+                      <div className="flex space-x-2">
+                        {!isCameraOn && !capturedImage && (
+                          <Button onClick={startCamera} className="flex-1">
+                            <Camera className="w-4 h-4 mr-2" />
+                            Buka Kamera
+                          </Button>
+                        )}
+                        
+                        {isCameraOn && (
+                          <Button onClick={capturePhoto} className="flex-1">
+                            <Camera className="w-4 h-4 mr-2" />
+                            Ambil Foto
+                          </Button>
+                        )}
+                        
+                        {(isCameraOn || capturedImage) && (
+                          <Button variant="outline" onClick={stopCamera} className="flex-1">
+                            <CameraOff className="w-4 h-4 mr-2" />
+                            Tutup Kamera
+                          </Button>
+                        )}
+                      </div>
                       
-                      {isCameraOn && (
-                        <Button onClick={capturePhoto} className="flex-1">
-                          <Camera className="w-4 h-4 mr-2" />
-                          Ambil Foto
-                        </Button>
-                      )}
-                      
-                      {(isCameraOn || capturedImage) && (
-                        <Button variant="outline" onClick={stopCamera} className="flex-1">
-                          <CameraOff className="w-4 h-4 mr-2" />
-                          Tutup Kamera
-                        </Button>
+                      {/* File upload fallback */}
+                      {!isCameraOn && !capturedImage && showFileUpload && (
+                        <div className="text-center border-t pt-2">
+                          <p className="text-sm text-gray-600 mb-2">Atau upload foto dari galeri:</p>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="user"
+                            onChange={handleFileUpload}
+                            className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                          />
+                        </div>
                       )}
                     </div>
                   </div>

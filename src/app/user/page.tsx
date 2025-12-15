@@ -173,13 +173,59 @@ export default function UserDashboard() {
         videoRef.current.srcObject = stream
         streamRef.current = stream
         
-        // Wait for video to be ready
-        await new Promise((resolve) => {
+        // Wait for video to be ready and try to play
+        await new Promise((resolve, reject) => {
           if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
+            videoRef.current.onloadedmetadata = async () => {
               console.log('Video metadata loaded')
-              resolve(void 0)
+              try {
+                // Explicitly play the video
+                await videoRef.current!.play()
+                console.log('Video started playing')
+                resolve(void 0)
+              } catch (playError: any) {
+                console.error('Video play failed:', playError)
+                // If autoplay fails, show user instruction
+                if (playError.name === 'NotAllowedError') {
+                  setError('Klik pada video untuk memulai kamera')
+                  // Add click handler to video
+                  const handleUserGesture = async () => {
+                    try {
+                      await videoRef.current!.play()
+                      console.log('Video started after user gesture')
+                      setError('')
+                      videoRef.current!.removeEventListener('click', handleUserGesture)
+                      resolve(void 0)
+                    } catch (e) {
+                      console.error('Still failed after user gesture:', e)
+                      reject(e)
+                    }
+                  }
+                  videoRef.current.addEventListener('click', handleUserGesture)
+                } else {
+                  reject(playError)
+                }
+              }
             }
+            
+            // Also handle canplay event as fallback
+            videoRef.current.oncanplay = async () => {
+              console.log('Video can play')
+              try {
+                if (videoRef.current && videoRef.current.paused) {
+                  await videoRef.current.play()
+                  console.log('Video started playing from canplay')
+                }
+              } catch (playError) {
+                console.error('Video play from canplay failed:', playError)
+              }
+            }
+            
+            // Timeout fallback
+            setTimeout(() => {
+              console.log('Video load timeout, proceeding anyway')
+              resolve(void 0)
+            }, 5000)
           }
         })
         
@@ -196,7 +242,7 @@ export default function UserDashboard() {
         errorMessage = 'Akses kamera ditolak. Berikan izin kamera di browser dan coba lagi.'
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         errorMessage = 'Kamera tidak ditemukan. Pastikan perangkat memiliki kamera.'
-      } else if (err.name === 'NotSupportedError' || err.name === 'NotSupportedError') {
+      } else if (err.name === 'NotSupportedError') {
         errorMessage = 'Kamera tidak didukung di browser ini. Coba browser lain.'
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
         errorMessage = 'Kamera sedang digunakan aplikasi lain atau ada masalah hardware.'
@@ -254,15 +300,36 @@ export default function UserDashboard() {
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current
       const video = videoRef.current
+      
+      console.log('Capturing photo - Video dimensions:', video.videoWidth, 'x', video.videoHeight)
+      console.log('Video readyState:', video.readyState, 'networkState:', video.networkState)
+      
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        setError('Video belum siap. Tunggu sebentar dan coba lagi.')
+        return
+      }
+      
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
       const ctx = canvas.getContext('2d')
       if (ctx) {
-        ctx.drawImage(video, 0, 0)
-        const imageData = canvas.toDataURL('image/jpeg')
+        // Save current transform
+        ctx.save()
+        // Mirror the image back to normal (undo the CSS transform)
+        ctx.scale(-1, 1)
+        ctx.drawImage(video, -canvas.width, 0)
+        // Restore transform
+        ctx.restore()
+        
+        const imageData = canvas.toDataURL('image/jpeg', 0.8)
+        console.log('Photo captured successfully')
         setCapturedImage(imageData)
         stopCamera()
+      } else {
+        setError('Canvas context tidak tersedia')
       }
+    } else {
+      setError('Video atau canvas element tidak tersedia')
     }
   }
 
@@ -445,6 +512,12 @@ export default function UserDashboard() {
                           controls={false}
                           className="w-full h-full object-cover"
                           style={{ transform: 'scaleX(-1)' }} // Mirror effect for selfie
+                          onError={(e) => console.error('Video error:', e)}
+                          onLoadStart={() => console.log('Video load started')}
+                          onLoadedData={() => console.log('Video data loaded')}
+                          onCanPlay={() => console.log('Video can play')}
+                          onPlay={() => console.log('Video started playing')}
+                          onPause={() => console.log('Video paused')}
                         />
                       ) : capturedImage ? (
                         <img

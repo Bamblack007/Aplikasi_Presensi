@@ -48,10 +48,31 @@ export default function UserDashboard() {
   const [isWithinRadius, setIsWithinRadius] = useState<boolean | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingCamera, setIsLoadingCamera] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [useFileInput, setUseFileInput] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase())
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+      const isMobile = isMobileDevice || (window.innerWidth <= 768 && isTouchDevice)
+      
+      setIsMobile(isMobile)
+      // For mobile devices, prefer file input over WebRTC
+      setUseFileInput(isMobile)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   useEffect(() => {
     // Check if user is logged in
@@ -114,6 +135,15 @@ export default function UserDashboard() {
   }
 
   const startCamera = async () => {
+    if (useFileInput) {
+      // For mobile: use file input with capture
+      if (fileInputRef.current) {
+        fileInputRef.current.click()
+      }
+      return
+    }
+
+    // For desktop: use WebRTC
     try {
       setIsLoadingCamera(true)
       setError('')
@@ -179,6 +209,8 @@ export default function UserDashboard() {
       }
       
       setError(errorMessage)
+      // Fallback to file input on error
+      setUseFileInput(true)
     } finally {
       setIsLoadingCamera(false)
     }
@@ -194,6 +226,28 @@ export default function UserDashboard() {
     }
     setIsCameraOn(false)
     setCapturedImage('')
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setCapturedImage(result)
+        setError('')
+        setIsCameraOn(false) // Set to false since we're using file input
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const toggleCameraMode = () => {
+    setUseFileInput(!useFileInput)
+    setError('')
+    setIsCameraOn(false)
+    setCapturedImage('')
+    stopCamera()
   }
 
   const capturePhoto = () => {
@@ -370,10 +424,11 @@ export default function UserDashboard() {
                 <CardHeader>
                   <CardTitle>Foto Selfie</CardTitle>
                   <CardDescription>
-                    Ambil foto selfie untuk presensi. Pastikan memberikan izin kamera dan lokasi di browser.
+                    Ambil foto selfie untuk presensi. 
                     <br />
                     <small className="text-gray-500">
-                      Tips: Gunakan browser Chrome/Safari, pastikan HTTPS, dan berikan izin kamera saat diminta.
+                      Mode: {isMobile ? 'Mobile (File Input)' : 'Desktop (WebRTC)'} 
+                      {useFileInput ? ' - Menggunakan file picker' : ' - Menggunakan kamera real-time'}
                     </small>
                   </CardDescription>
                 </CardHeader>
@@ -401,7 +456,9 @@ export default function UserDashboard() {
                         <div className="flex items-center justify-center h-full min-h-[300px]">
                           <div className="text-center">
                             <CameraOff className="w-16 h-16 text-gray-400 mx-auto mb-2" />
-                            <p className="text-gray-400 text-sm">Kamera belum diaktifkan</p>
+                            <p className="text-gray-400 text-sm">
+                              {useFileInput ? 'Klik "Pilih Foto" untuk memilih dari galeri' : 'Kamera belum diaktifkan'}
+                            </p>
                           </div>
                         </div>
                       )}
@@ -412,24 +469,32 @@ export default function UserDashboard() {
                     
                     {/* Camera Controls */}
                     <div className="space-y-2">
+                      {/* Mode Toggle */}
+                      <div className="flex justify-center">
+                        <Button variant="ghost" size="sm" onClick={toggleCameraMode} className="text-xs">
+                          {useFileInput ? 'Mode: File Input' : 'Mode: Real-time Camera'}
+                          {!isMobile && ' | Klik untuk ganti'}
+                        </Button>
+                      </div>
+
                       <div className="flex space-x-2">
                         {!isCameraOn && !capturedImage && (
                           <Button onClick={startCamera} className="flex-1" disabled={isLoadingCamera}>
                             {isLoadingCamera ? (
                               <>
                                 <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Membuka Kamera...
+                                {useFileInput ? 'Membuka Galeri...' : 'Membuka Kamera...'}
                               </>
                             ) : (
                               <>
                                 <Camera className="w-4 h-4 mr-2" />
-                                Buka Kamera
+                                {useFileInput ? 'Pilih Foto' : 'Buka Kamera'}
                               </>
                             )}
                           </Button>
                         )}
                         
-                        {isCameraOn && (
+                        {isCameraOn && !useFileInput && (
                           <Button onClick={capturePhoto} className="flex-1">
                             <Camera className="w-4 h-4 mr-2" />
                             Ambil Foto
@@ -439,10 +504,21 @@ export default function UserDashboard() {
                         {(isCameraOn || capturedImage) && (
                           <Button variant="outline" onClick={stopCamera} className="flex-1">
                             <CameraOff className="w-4 h-4 mr-2" />
-                            Tutup Kamera
+                            {capturedImage ? 'Hapus Foto' : 'Tutup Kamera'}
                           </Button>
                         )}
                       </div>
+
+                      {/* Hidden file input for mobile/file mode */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="user"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </div>
                     </div>
                   </div>
                 </CardContent>

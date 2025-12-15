@@ -46,7 +46,7 @@ export default function UserDashboard() {
   const [capturedImage, setCapturedImage] = useState<string>('')
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [isWithinRadius, setIsWithinRadius] = useState<boolean | null>(null)
-  const [showFileUpload, setShowFileUpload] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -125,9 +125,10 @@ export default function UserDashboard() {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'user',
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        } 
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 }
+        },
+        audio: false
       })
       
       if (videoRef.current) {
@@ -153,9 +154,6 @@ export default function UserDashboard() {
       }
       
       setError(errorMessage)
-      
-      // Fallback: offer file upload
-      setShowFileUpload(true)
     }
   }
 
@@ -283,19 +281,6 @@ export default function UserDashboard() {
     }
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        setCapturedImage(result)
-        setError('')
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -370,6 +355,7 @@ export default function UserDashboard() {
                           ref={videoRef}
                           autoPlay
                           playsInline
+                          muted
                           className="w-full h-full object-cover"
                         />
                       ) : capturedImage ? (
@@ -412,20 +398,6 @@ export default function UserDashboard() {
                           </Button>
                         )}
                       </div>
-                      
-                      {/* File upload fallback */}
-                      {!isCameraOn && !capturedImage && showFileUpload && (
-                        <div className="text-center border-t pt-2">
-                          <p className="text-sm text-gray-600 mb-2">Atau upload foto dari galeri:</p>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="user"
-                            onChange={handleFileUpload}
-                            className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                 </CardContent>

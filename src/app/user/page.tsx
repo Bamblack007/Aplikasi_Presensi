@@ -190,6 +190,7 @@ export default function UserDashboard() {
         streamRef.current = stream
         
         // Wait for video to be ready and try to play
+        let cameraReady = false
         await new Promise((resolve, reject) => {
           if (videoRef.current) {
             videoRef.current.onloadedmetadata = async () => {
@@ -198,12 +199,15 @@ export default function UserDashboard() {
                 // Explicitly play the video
                 await videoRef.current!.play()
                 console.log('Video started playing')
+                cameraReady = true
                 resolve(void 0)
               } catch (playError: any) {
                 console.error('Video play failed:', playError)
-                // If autoplay fails, show user instruction
+                // If autoplay fails, show user instruction but still consider camera ready
                 if (playError.name === 'NotAllowedError') {
-                  setError('Klik pada video untuk memulai kamera')
+                  console.log('Autoplay blocked, waiting for user gesture')
+                  setError('Klik pada area video untuk memulai kamera')
+                  cameraReady = true // Camera is ready, just needs user gesture
                   // Add click handler to video
                   const handleUserGesture = async () => {
                     try {
@@ -211,13 +215,13 @@ export default function UserDashboard() {
                       console.log('Video started after user gesture')
                       setError('')
                       videoRef.current!.removeEventListener('click', handleUserGesture)
-                      resolve(void 0)
                     } catch (e) {
                       console.error('Still failed after user gesture:', e)
                       reject(e)
                     }
                   }
                   videoRef.current.addEventListener('click', handleUserGesture)
+                  resolve(void 0) // Resolve so we can continue
                 } else {
                   reject(playError)
                 }
@@ -245,7 +249,11 @@ export default function UserDashboard() {
           }
         })
         
-        setIsCameraOn(true)
+        // Set camera as active if it was successfully initialized
+        if (cameraReady) {
+          setIsCameraOn(true)
+          console.log('Camera successfully started, isCameraOn set to true')
+        }
         setError('')
       } else {
         throw new Error('Video element tidak tersedia')
@@ -585,10 +593,13 @@ export default function UserDashboard() {
                         )}
                         
                         {isCameraOn && !useFileInput && (
-                          <Button onClick={capturePhoto} className="flex-1">
-                            <Camera className="w-4 h-4 mr-2" />
-                            Ambil Foto
-                          </Button>
+                          <>
+                            {console.log('Showing capture button - isCameraOn:', isCameraOn, 'useFileInput:', useFileInput)}
+                            <Button onClick={capturePhoto} className="flex-1">
+                              <Camera className="w-4 h-4 mr-2" />
+                              Ambil Foto
+                            </Button>
+                          </>
                         )}
                         
                         {(isCameraOn || capturedImage) && (

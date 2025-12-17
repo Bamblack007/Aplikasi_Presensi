@@ -1,453 +1,217 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  Camera, 
-  MapPin, 
-  LogOut, 
-  Clock, 
-  CameraOff,
-  CheckCircle,
-  XCircle,
-  User
-} from 'lucide-react'
+import { useState, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { LogOut, User, Camera, CameraOff, Clock, MapPin, CheckCircle, XCircle } from 'lucide-react';
 
-interface Attendance {
-  id: string
-  type: 'CHECK_IN' | 'CHECK_OUT'
-  photoUrl: string
-  latitude: number
-  longitude: number
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <User className="w-6 h-6 text-blue-600 mr-2" />
-              <h1 className="text-xl font-semibold text-gray-900">Dashboard Karyawan</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Welcome, {currentUser?.name}</span>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+export default function UserPage() {
+  // State dan ref
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isLoadingCamera, setIsLoadingCamera] = useState(false);
+  const [capturedImage, setCapturedImage] = useState('');
+  const [useFileInput, setUseFileInput] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
+  const [isWithinRadius, setIsWithinRadius] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attendances, setAttendances] = useState([]);
+  const [officeLocation, setOfficeLocation] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Alerts */}
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {success && (
-          <Alert className="mb-6 border-green-200 bg-green-50">
-            <AlertDescription className="text-green-800">{success}</AlertDescription>
-          </Alert>
-        )}
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const streamRef = useRef(null);
 
-        <Tabs defaultValue="presensi" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="presensi">Presensi</TabsTrigger>
-            <TabsTrigger value="cuti">Cuti</TabsTrigger>
-            <TabsTrigger value="riwayat">Riwayat Presensi</TabsTrigger>
-            <TabsTrigger value="slipgaji">Slip Gaji</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="presensi">
-            {/* ...existing code for presensi... */}
-          </TabsContent>
-          <TabsContent value="cuti">
-            <CutiFormAndRiwayat />
-          </TabsContent>
-
-import CutiFormAndRiwayat from '@/components/user/CutiFormAndRiwayat';
-          <TabsContent value="riwayat">
-            <RiwayatPresensiTable />
-          </TabsContent>
-
-import RiwayatPresensiTable from '@/components/user/RiwayatPresensiTable';
-          <TabsContent value="slipgaji">
-            <SlipGajiTable />
-          </TabsContent>
-
-import SlipGajiTable from '@/components/user/SlipGajiTable';
-        </Tabs>
-      </main>
-    </div>
-  )
-      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-      const isMobile = isMobileDevice || (window.innerWidth <= 768 && isTouchDevice)
-      
-      setIsMobile(isMobile)
-      // For mobile devices, prefer file input over WebRTC
-      setUseFileInput(isMobile)
-    }
-    
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
+  // Hooks
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token')
-    const user = localStorage.getItem('user')
-    
-    if (!token || !user) {
-      window.location.href = '/'
-      return
-    }
+    setIsMobile(/Mobi|Android/i.test(navigator.userAgent));
+    fetchData();
+  }, []);
 
-    const userData = JSON.parse(user)
-    if (userData.role === 'ADMIN') {
-      window.location.href = '/admin'
-      return
-    }
-
-    setCurrentUser(userData)
-    fetchData()
-  }, [])
-
-  const fetchData = async () => {
+  // Fetch data user, lokasi kantor, dan riwayat presensi
+  async function fetchData() {
+    setIsLoading(true);
+    setError('');
     try {
-      const token = localStorage.getItem('token')
-      
-      // Fetch attendances
-      const attendancesResponse = await fetch('/api/user/attendances', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
-      // Fetch office location
-      const locationResponse = await fetch('/api/user/office-location', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (attendancesResponse.ok) {
-        const attendancesData = await attendancesResponse.json()
-        setAttendances(attendancesData)
+      // Fetch user
+      const userRes = await fetch('/api/user/me');
+      if (userRes.ok) {
+        setCurrentUser(await userRes.json());
       }
-
-      if (locationResponse.ok) {
-        const locationData = await locationResponse.json()
-        setOfficeLocation(locationData)
+      // Fetch lokasi kantor
+      const locRes = await fetch('/api/user/office-location');
+      if (locRes.ok) {
+        setOfficeLocation(await locRes.json());
       }
-    } catch (err) {
-      setError('Gagal memuat data')
+      // Fetch riwayat presensi
+      const attRes = await fetch('/api/user/attendances');
+      if (attRes.ok) {
+        setAttendances(await attRes.json());
+      }
+    } catch (e) {
+      setError('Gagal memuat data user');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    window.location.href = '/'
+  // Logout
+  function handleLogout() {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
   }
 
-  const startCamera = async () => {
-    if (useFileInput) {
-      // For mobile: use file input with capture
-      if (fileInputRef.current) {
-        fileInputRef.current.click()
-      }
-      return
-    }
-
-    // For desktop: use WebRTC
+  // Kamera
+  async function startCamera() {
+    setIsLoadingCamera(true);
+    setError('');
+    setUseFileInput(false);
     try {
-      setIsLoadingCamera(true)
-      setError('')
-
-      // Check if camera is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Kamera tidak didukung di browser ini')
+        setError('Kamera tidak didukung di browser ini.');
+        setUseFileInput(true);
+        return;
       }
-
-      // Request camera permission with simpler constraints for mobile compatibility
-      const constraints = {
-        video: {
-          facingMode: 'user', // Front camera for selfie
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        },
-        audio: false
-      }
-
-      console.log('Requesting camera access with constraints:', constraints)
-      const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      
-      console.log('Camera stream obtained:', stream)
-      
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) {
-        // Wait for video element to be fully ready
-        await new Promise(resolve => {
-          if (videoRef.current) {
-            // If already ready, resolve immediately
-            resolve(void 0)
-          } else {
-            // Wait for next tick to ensure ref is set
-            setTimeout(resolve, 0)
-          }
-        })
-        
-        // Double check ref is available
-        if (!videoRef.current) {
-          throw new Error('Video element tidak tersedia setelah pengecekan')
-        }
-        
-        // Ensure video element is ready
-        videoRef.current.srcObject = stream
-        streamRef.current = stream
-        
-        // Wait for video to be ready and try to play
-        let cameraReady = false
-        await new Promise((resolve, reject) => {
-          if (videoRef.current) {
-            videoRef.current.onloadedmetadata = async () => {
-              console.log('Video metadata loaded')
-              try {
-                // Explicitly play the video
-                await videoRef.current!.play()
-                console.log('Video started playing')
-                cameraReady = true
-                resolve(void 0)
-              } catch (playError: any) {
-                console.error('Video play failed:', playError)
-                // If autoplay fails, show user instruction but still consider camera ready
-                if (playError.name === 'NotAllowedError') {
-                  console.log('Autoplay blocked, waiting for user gesture')
-                  setError('Klik pada area video untuk memulai kamera')
-                  cameraReady = true // Camera is ready, just needs user gesture
-                  // Add click handler to video
-                  const handleUserGesture = async () => {
-                    try {
-                      await videoRef.current!.play()
-                      console.log('Video started after user gesture')
-                      setError('')
-                      videoRef.current!.removeEventListener('click', handleUserGesture)
-                    } catch (e) {
-                      console.error('Still failed after user gesture:', e)
-                      reject(e)
-                    }
-                  }
-                  videoRef.current.addEventListener('click', handleUserGesture)
-                  resolve(void 0) // Resolve so we can continue
-                } else {
-                  reject(playError)
-                }
-              }
-            }
-            
-            // Also handle canplay event as fallback
-            videoRef.current.oncanplay = async () => {
-              console.log('Video can play')
-              try {
-                if (videoRef.current && videoRef.current.paused) {
-                  await videoRef.current.play()
-                  console.log('Video started playing from canplay')
-                }
-              } catch (playError) {
-                console.error('Video play from canplay failed:', playError)
-              }
-            }
-            
-            // Timeout fallback
-            setTimeout(() => {
-              console.log('Video load timeout, proceeding anyway')
-              resolve(void 0)
-            }, 5000)
-          }
-        })
-        
-        // Set camera as active if it was successfully initialized
-        if (cameraReady) {
-          setIsCameraOn(true)
-          console.log('Camera successfully started, isCameraOn set to true')
-        }
-        setError('')
-      } else {
-        throw new Error('Video element tidak tersedia')
+        videoRef.current.srcObject = stream;
       }
-    } catch (err: any) {
-      console.error('Camera error:', err)
-      let errorMessage = 'Tidak dapat mengakses kamera.'
-      
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        errorMessage = 'Akses kamera ditolak. Berikan izin kamera di browser dan coba lagi.'
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        errorMessage = 'Kamera tidak ditemukan. Pastikan perangkat memiliki kamera.'
-      } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Kamera tidak didukung di browser ini. Coba browser lain.'
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        errorMessage = 'Kamera sedang digunakan aplikasi lain atau ada masalah hardware.'
-      } else if (err.name === 'OverconstrainedError') {
-        errorMessage = 'Kamera tidak mendukung pengaturan yang diminta.'
-      } else if (err.name === 'SecurityError') {
-        errorMessage = 'Akses kamera diblokir karena masalah keamanan. Pastikan menggunakan HTTPS.'
-      } else if (err.message) {
-        errorMessage = `Error kamera: ${err.message}`
-      }
-      
-      setError(errorMessage)
-      // Fallback to file input on error
-      setUseFileInput(true)
+      streamRef.current = stream;
+      setIsCameraOn(true);
+    } catch (err) {
+      setError('Tidak dapat mengakses kamera. Izinkan akses kamera di browser.');
+      setUseFileInput(true);
     } finally {
-      setIsLoadingCamera(false)
+      setIsLoadingCamera(false);
     }
   }
 
-  const stopCamera = () => {
+  function stopCamera() {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
-      streamRef.current = null
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
     if (videoRef.current) {
-      videoRef.current.srcObject = null
+      videoRef.current.srcObject = null;
     }
-    setIsCameraOn(false)
-    setCapturedImage('')
+    setIsCameraOn(false);
+    setCapturedImage('');
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  function handleFileUpload(event) {
+    const file = event.target.files?.[0];
     if (file) {
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
-        const result = e.target?.result as string
-        setCapturedImage(result)
-        setError('')
-        setIsCameraOn(false) // Set to false since we're using file input
-      }
-      reader.readAsDataURL(file)
+        setCapturedImage(e.target.result);
+        setError('');
+        setIsCameraOn(false);
+      };
+      reader.readAsDataURL(file);
     }
   }
 
-  const toggleCameraMode = () => {
-    setUseFileInput(!useFileInput)
-    setError('')
-    setIsCameraOn(false)
-    setCapturedImage('')
-    stopCamera()
+  function toggleCameraMode() {
+    setUseFileInput(!useFileInput);
+    setError('');
+    setIsCameraOn(false);
+    setCapturedImage('');
+    stopCamera();
   }
 
-  const capturePhoto = () => {
+  function capturePhoto() {
     if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      
-      console.log('Capturing photo - Video dimensions:', video.videoWidth, 'x', video.videoHeight)
-      console.log('Video readyState:', video.readyState, 'networkState:', video.networkState)
-      
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
       if (video.videoWidth === 0 || video.videoHeight === 0) {
-        setError('Video belum siap. Tunggu sebentar dan coba lagi.')
-        return
+        setError('Video belum siap. Tunggu sebentar dan coba lagi.');
+        return;
       }
-      
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      const ctx = canvas.getContext('2d')
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
       if (ctx) {
-        // Save current transform
-        ctx.save()
-        // Mirror the image back to normal (undo the CSS transform)
-        ctx.scale(-1, 1)
-        ctx.drawImage(video, -canvas.width, 0)
-        // Restore transform
-        ctx.restore()
-        
-        const imageData = canvas.toDataURL('image/jpeg', 0.8)
-        console.log('Photo captured successfully')
-        setCapturedImage(imageData)
-        stopCamera()
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -canvas.width, 0);
+        ctx.restore();
+        setCapturedImage(canvas.toDataURL('image/jpeg', 0.8));
+        stopCamera();
       } else {
-        setError('Canvas context tidak tersedia')
+        setError('Canvas context tidak tersedia');
       }
     } else {
-      setError('Video atau canvas element tidak tersedia')
+      setError('Video atau canvas element tidak tersedia');
     }
   }
 
-  const getCurrentLocation = () => {
+  // Lokasi
+  function getCurrentLocation() {
     if (!navigator.geolocation) {
-      setError('Geolocation tidak didukung oleh browser ini')
-      return
+      setError('Geolocation tidak didukung oleh browser ini');
+      return;
     }
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const location = {
           lat: position.coords.latitude,
           lng: position.coords.longitude
-        }
-        setUserLocation(location)
-        
-        // Check if within radius
+        };
+        setUserLocation(location);
         if (officeLocation) {
           const distance = calculateDistance(
             location.lat,
             location.lng,
             officeLocation.latitude,
             officeLocation.longitude
-          )
-          setIsWithinRadius(distance <= officeLocation.radius)
+          );
+          setIsWithinRadius(distance <= officeLocation.radius);
         }
       },
-      (error) => {
-        setError('Tidak dapat mendapatkan lokasi. Pastikan GPS diizinkan.')
+      () => {
+        setError('Tidak dapat mendapatkan lokasi. Pastikan GPS diizinkan.');
       }
-    )
+    );
   }
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3 // Earth's radius in meters
-    const φ1 = lat1 * Math.PI/180
-    const φ2 = lat2 * Math.PI/180
-    const Δφ = (lat2-lat1) * Math.PI/180
-    const Δλ = (lon2-lon1) * Math.PI/180
-
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
     const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
               Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-
-    return R * c // Distance in meters
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   }
 
-  const submitAttendance = async (type: 'CHECK_IN' | 'CHECK_OUT') => {
+  // Submit presensi
+  async function submitAttendance(type) {
     if (!capturedImage) {
-      setError('Silakan ambil foto terlebih dahulu')
-      return
+      setError('Silakan ambil foto terlebih dahulu');
+      return;
     }
-
     if (!userLocation) {
-      setError('Silakan dapatkan lokasi terlebih dahulu')
-      return
+      setError('Silakan dapatkan lokasi terlebih dahulu');
+      return;
     }
-
     if (isWithinRadius === false) {
-      setError('Anda berada di luar radius presensi')
-      return
+      setError('Anda berada di luar radius presensi');
+      return;
     }
-
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/user/attendances', {
         method: 'POST',
         headers: {
@@ -460,31 +224,31 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
           latitude: userLocation.lat,
           longitude: userLocation.lng
         })
-      })
-
+      });
       if (response.ok) {
-        setSuccess(`Presensi ${type === 'CHECK_IN' ? 'masuk' : 'keluar'} berhasil`)
-        setCapturedImage('')
-        setUserLocation(null)
-        setIsWithinRadius(null)
-        fetchData()
+        setSuccess(`Presensi ${type === 'CHECK_IN' ? 'masuk' : 'keluar'} berhasil`);
+        setCapturedImage('');
+        setUserLocation(null);
+        setIsWithinRadius(null);
+        fetchData();
       } else {
-        const error = await response.json()
-        setError(error.message || 'Gagal melakukan presensi')
+        const error = await response.json();
+        setError(error.message || 'Gagal melakukan presensi');
       }
     } catch (err) {
-      setError('Gagal melakukan presensi')
+      setError('Gagal melakukan presensi');
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
+  // Render
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
-    )
+    );
   }
 
   return (
@@ -507,7 +271,6 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
           </div>
         </div>
       </header>
-
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Alerts */}
         {error && (
@@ -520,7 +283,6 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
             <AlertDescription className="text-green-800">{success}</AlertDescription>
           </Alert>
         )}
-
         <Tabs defaultValue="attendance" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="attendance" className="flex items-center">
@@ -532,7 +294,6 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
               Riwayat
             </TabsTrigger>
           </TabsList>
-
           {/* Attendance Tab */}
           <TabsContent value="attendance">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -541,10 +302,9 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                 <CardHeader>
                   <CardTitle>Foto Selfie</CardTitle>
                   <CardDescription>
-                    Ambil foto selfie untuk presensi. 
-                    <br />
+                    Ambil foto selfie untuk presensi. <br />
                     <small className="text-gray-500">
-                      Mode: {isMobile ? 'Mobile (File Input)' : 'Desktop (WebRTC)'} 
+                      Mode: {isMobile ? 'Mobile (File Input)' : 'Desktop (WebRTC)'}
                       {useFileInput ? ' - Menggunakan file picker' : ' - Menggunakan kamera real-time'}
                     </small>
                   </CardDescription>
@@ -561,15 +321,8 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                         muted
                         controls={false}
                         className={`w-full h-full object-cover ${isCameraOn ? '' : 'hidden'}`}
-                        style={{ transform: isCameraOn ? 'scaleX(-1)' : 'none' }} // Mirror effect for selfie
-                        onError={(e) => console.error('Video error:', e)}
-                        onLoadStart={() => console.log('Video load started')}
-                        onLoadedData={() => console.log('Video data loaded')}
-                        onCanPlay={() => console.log('Video can play')}
-                        onPlay={() => console.log('Video started playing')}
-                        onPause={() => console.log('Video paused')}
+                        style={{ transform: isCameraOn ? 'scaleX(-1)' : 'none' }}
                       />
-                      
                       {capturedImage ? (
                         <img
                           src={capturedImage}
@@ -587,10 +340,8 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                         </div>
                       ) : null}
                     </div>
-                    
                     {/* Hidden canvas for photo capture */}
                     <canvas ref={canvasRef} className="hidden" />
-                    
                     {/* Camera Controls */}
                     <div className="space-y-2">
                       {/* Mode Toggle */}
@@ -600,7 +351,6 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                           {!isMobile && ' | Klik untuk ganti'}
                         </Button>
                       </div>
-
                       <div className="flex space-x-2">
                         {!isCameraOn && !capturedImage && (
                           <Button onClick={startCamera} className="flex-1" disabled={isLoadingCamera}>
@@ -617,17 +367,12 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                             )}
                           </Button>
                         )}
-                        
                         {isCameraOn && !useFileInput && (
-                          <>
-                            {console.log('Showing capture button - isCameraOn:', isCameraOn, 'useFileInput:', useFileInput)}
-                            <Button onClick={capturePhoto} className="flex-1">
-                              <Camera className="w-4 h-4 mr-2" />
-                              Ambil Foto
-                            </Button>
-                          </>
+                          <Button onClick={capturePhoto} className="flex-1">
+                            <Camera className="w-4 h-4 mr-2" />
+                            Ambil Foto
+                          </Button>
                         )}
-                        
                         {(isCameraOn || capturedImage) && (
                           <Button variant="outline" onClick={stopCamera} className="flex-1">
                             <CameraOff className="w-4 h-4 mr-2" />
@@ -635,7 +380,6 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                           </Button>
                         )}
                       </div>
-
                       {/* Hidden file input for mobile/file mode */}
                       <input
                         ref={fileInputRef}
@@ -649,7 +393,6 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                   </div>
                 </CardContent>
               </Card>
-
               {/* Location Section */}
               <Card>
                 <CardHeader>
@@ -666,17 +409,15 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                         <p className="text-sm text-blue-700">Radius: {officeLocation.radius} meter</p>
                       </div>
                     )}
-
                     {/* Get Location Button */}
-                    <Button 
-                      onClick={getCurrentLocation} 
+                    <Button
+                      onClick={getCurrentLocation}
                       className="w-full"
                       disabled={!officeLocation}
                     >
                       <MapPin className="w-4 h-4 mr-2" />
                       Dapatkan Lokasi Saya
                     </Button>
-
                     {/* Location Status */}
                     {userLocation && (
                       <div className="space-y-2">
@@ -692,24 +433,22 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
                             {isWithinRadius ? 'Anda berada dalam radius presensi' : 'Anda berada di luar radius presensi'}
                           </span>
                         </div>
-                        
                         <div className="text-sm text-gray-600">
                           <p>Lat: {userLocation.lat.toFixed(6)}</p>
                           <p>Lng: {userLocation.lng.toFixed(6)}</p>
                         </div>
                       </div>
                     )}
-
                     {/* Attendance Buttons */}
                     <div className="grid grid-cols-2 gap-2">
-                      <Button 
+                      <Button
                         onClick={() => submitAttendance('CHECK_IN')}
                         disabled={isSubmitting || !capturedImage || !userLocation || isWithinRadius === false}
                         className="bg-green-600 hover:bg-green-700"
                       >
                         {isSubmitting ? 'Processing...' : 'Check In'}
                       </Button>
-                      <Button 
+                      <Button
                         onClick={() => submitAttendance('CHECK_OUT')}
                         disabled={isSubmitting || !capturedImage || !userLocation || isWithinRadius === false}
                         className="bg-red-600 hover:bg-red-700"
@@ -722,7 +461,6 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
               </Card>
             </div>
           </TabsContent>
-
           {/* History Tab */}
           <TabsContent value="history">
             <Card>
@@ -767,5 +505,5 @@ import SlipGajiTable from '@/components/user/SlipGajiTable';
         </Tabs>
       </main>
     </div>
-  )
+  );
 }

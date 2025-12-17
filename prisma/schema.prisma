@@ -58,3 +58,116 @@ enum AttendanceType {
   CHECK_IN
   CHECK_OUT
 }
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Shift {
+  id        String   @id @default(cuid())
+  name      String
+  startTime DateTime
+  endTime   DateTime
+  isActive  Boolean  @default(true)
+  schedules WorkSchedule[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkSchedule {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  departmentId String
+  department  Department @relation(fields: [departmentId], references: [id])
+  shiftId     String?
+  shift       Shift?    @relation(fields: [shiftId], references: [id])
+  workDate    DateTime
+  isOff       Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Leave {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  type        LeaveType
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  documentUrl String?
+  status      LeaveStatus @default(PENDING)
+  approval    LeaveApproval?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LeaveApproval {
+  id        String   @id @default(cuid())
+  leaveId   String   @unique
+  leave     Leave    @relation(fields: [leaveId], references: [id])
+  adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
+  approved  Boolean
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payroll {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  month       Int
+  year        Int
+  baseSalary  Int
+  totalDeduct Int      @default(0)
+  netSalary   Int      @default(0)
+  isLocked    Boolean  @default(false)
+  deductions  PayrollDeduction[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PayrollDeduction {
+  id         String   @id @default(cuid())
+  payrollId  String
+  payroll    Payroll  @relation(fields: [payrollId], references: [id])
+  type       DeductionType
+  amount     Int
+  notes      String?
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  details    String?
+  createdAt  DateTime @default(now())
+}
+
+enum LeaveType {
+  ANNUAL
+  MATERNITY
+  SICK
+  FAMILY_SICK
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DeductionType {
+  LATE
+  ALPHA
+  LEAVE_OVER
+}

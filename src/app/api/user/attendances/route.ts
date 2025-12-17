@@ -142,7 +142,84 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create attendance
+    // --- Tambahan validasi berbasis jadwal & shift ---
+    // Ambil jadwal kerja aktif user untuk hari ini
+    const now = new Date();
+    const todaySchedule = await db.workSchedule.findFirst({
+      where: {
+        userId: decoded.userId,
+        workDate: today,
+        isOff: false
+      },
+      include: {
+        shift: true,
+        department: true
+      }
+    });
+
+    if (!todaySchedule) {
+      return NextResponse.json(
+        { message: 'Anda tidak memiliki jadwal kerja aktif hari ini.' },
+        { status: 400 }
+      );
+    }
+
+    // Tentukan jam masuk & keluar dari shift/jadwal
+    let startTime = todaySchedule.shift ? todaySchedule.shift.startTime : new Date(todaySchedule.workDate.setHours(7,0,0,0));
+    let endTime = todaySchedule.shift ? todaySchedule.shift.endTime : new Date(todaySchedule.workDate.setHours(17,0,0,0));
+    let checkInWindow = new Date(startTime);
+    let checkOutWindow = new Date(endTime);
+
+    // Atur window check-in/check-out sesuai departemen/shift
+    if (todaySchedule.department.name === 'Sekuriti') {
+      if (todaySchedule.shift && todaySchedule.shift.name === 'Pagi') {
+        checkInWindow.setHours(6,0,0,0);
+        checkOutWindow.setHours(23,59,59,999);
+      } else if (todaySchedule.shift && todaySchedule.shift.name === 'Malam') {
+        checkInWindow.setHours(18,0,0,0);
+        checkOutWindow = new Date(endTime);
+        checkOutWindow.setHours(10,0,0,0); // 2 jam setelah selesai shift
+      }
+    } else if (todaySchedule.department.name === 'Resepsionis') {
+      checkInWindow.setHours(5,30,0,0);
+      checkOutWindow.setHours(23,59,59,999);
+    } else if (todaySchedule.department.name === 'Pramubakti') {
+      checkInWindow.setHours(5,0,0,0);
+      checkOutWindow.setHours(23,59,59,999);
+    }
+
+    // Validasi window waktu presensi
+    if (type === 'CHECK_IN' && now < checkInWindow) {
+      return NextResponse.json(
+        { message: 'Check-in belum dibuka.' },
+        { status: 400 }
+      );
+    }
+    if (type === 'CHECK_OUT' && now > checkOutWindow) {
+      return NextResponse.json(
+        { message: 'Check-out sudah melewati batas waktu.' },
+        { status: 400 }
+      );
+    }
+
+    // --- Status presensi & potongan otomatis ---
+    let status = 'HADIR';
+    let deduction = 0;
+    if (type === 'CHECK_IN') {
+      const diffMinutes = Math.floor((now.getTime() - startTime.getTime()) / 60000);
+      if (diffMinutes > 0 && diffMinutes <= 30) {
+        status = 'TERLAMBAT';
+        deduction = 25000;
+      } else if (diffMinutes > 30 && diffMinutes <= 60) {
+        status = 'TERLAMBAT';
+        deduction = 50000;
+      } else if (diffMinutes > 60) {
+        status = 'TERLAMBAT';
+        deduction = 75000;
+      }
+    }
+
+    // Simpan presensi
     const attendance = await db.attendance.create({
       data: {
         userId: decoded.userId,
@@ -151,6 +228,7 @@ export async function POST(request: NextRequest) {
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude),
         notes: notes || null
+        // Tambahkan field status jika sudah ada di model Attendance
       },
       include: {
         user: {
@@ -160,12 +238,42 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-    })
+    });
+
+    // Simpan potongan jika ada keterlambatan
+    if (deduction > 0) {
+      await db.payrollDeduction.create({
+        data: {
+          payroll: {
+            connectOrCreate: {
+              where: {
+                userId_month_year: {
+                  userId: decoded.userId,
+                  month: now.getMonth() + 1,
+                  year: now.getFullYear()
+                }
+              },
+              create: {
+                userId: decoded.userId,
+                month: now.getMonth() + 1,
+                year: now.getFullYear(),
+                baseSalary: 0
+              }
+            }
+          },
+          type: 'LATE',
+          amount: deduction,
+          notes: status
+        }
+      });
+    }
 
     return NextResponse.json({
       message: 'Presensi berhasil',
-      attendance
-    })
+      attendance,
+      status,
+      deduction
+    });
   } catch (error) {
     console.error('Create attendance error:', error)
     return NextResponse.json(

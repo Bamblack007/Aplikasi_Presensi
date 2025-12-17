@@ -23,44 +23,70 @@ interface Attendance {
   photoUrl: string
   latitude: number
   longitude: number
-  notes?: string
-  createdAt: string
-}
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <User className="w-6 h-6 text-blue-600 mr-2" />
+              <h1 className="text-xl font-semibold text-gray-900">Dashboard Karyawan</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">Welcome, {currentUser?.name}</span>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
 
-interface OfficeLocation {
-  id: string
-  name: string
-  latitude: number
-  longitude: number
-  radius: number
-}
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {/* Alerts */}
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert className="mb-6 border-green-200 bg-green-50">
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
+          </Alert>
+        )}
 
-export default function UserDashboard() {
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [attendances, setAttendances] = useState<Attendance[]>([])
-  const [officeLocation, setOfficeLocation] = useState<OfficeLocation | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [isCameraOn, setIsCameraOn] = useState(false)
-  const [capturedImage, setCapturedImage] = useState<string>('')
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
-  const [isWithinRadius, setIsWithinRadius] = useState<boolean | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoadingCamera, setIsLoadingCamera] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const [useFileInput, setUseFileInput] = useState(false)
-  
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+        <Tabs defaultValue="presensi" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="presensi">Presensi</TabsTrigger>
+            <TabsTrigger value="cuti">Cuti</TabsTrigger>
+            <TabsTrigger value="riwayat">Riwayat Presensi</TabsTrigger>
+            <TabsTrigger value="slipgaji">Slip Gaji</TabsTrigger>
+          </TabsList>
 
-  // Detect mobile device
-  useEffect(() => {
-    const checkMobile = () => {
-      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
-      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase())
+          <TabsContent value="presensi">
+            {/* ...existing code for presensi... */}
+          </TabsContent>
+          <TabsContent value="cuti">
+            <CutiFormAndRiwayat />
+          </TabsContent>
+
+import CutiFormAndRiwayat from '@/components/user/CutiFormAndRiwayat';
+          <TabsContent value="riwayat">
+            <RiwayatPresensiTable />
+          </TabsContent>
+
+import RiwayatPresensiTable from '@/components/user/RiwayatPresensiTable';
+          <TabsContent value="slipgaji">
+            <SlipGajiTable />
+          </TabsContent>
+
+import SlipGajiTable from '@/components/user/SlipGajiTable';
+        </Tabs>
+      </main>
+    </div>
+  )
       const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
       const isMobile = isMobileDevice || (window.innerWidth <= 768 && isTouchDevice)
       

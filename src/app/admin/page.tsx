@@ -47,6 +47,7 @@ export default function AdminDashboard() {
   const [success, setSuccess] = useState('')
   const [showAddUser, setShowAddUser] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [editUserData, setEditUserData] = useState<Partial<User & { password?: string }>>({})
   const [currentUser, setCurrentUser] = useState<any>(null)
 
   // Form states
@@ -150,7 +151,7 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleUpdateUser = async (userId: string, userData: Partial<User>) => {
+  const handleUpdateUser = async (userId: string, userData: Partial<User & { password?: string }>) => {
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(`/api/admin/users/${userId}`, {
@@ -277,16 +278,92 @@ export default function AdminDashboard() {
         )}
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-6">
+                        <TabsTrigger value="monitoring" className="flex items-center">
+                          <Badge className="w-4 h-4 mr-2" />
+                          Monitoring Presensi
+                        </TabsTrigger>
+                        <TabsTrigger value="rekap" className="flex items-center">
+                          <Badge className="w-4 h-4 mr-2" />
+                          Rekap & Payroll
+                        </TabsTrigger>
+                      {/* Monitoring Presensi Tab */}
+                      <TabsContent value="monitoring">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Monitoring Presensi</CardTitle>
+                            <CardDescription>Presensi real-time dan histori pegawai</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <MonitoringPresensiTable />
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+            import MonitoringPresensiTable from '@/components/admin/MonitoringPresensiTable';
+
+                      {/* Rekap & Payroll Tab */}
+                      <TabsContent value="rekap">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Rekap Presensi & Payroll</CardTitle>
+                            <CardDescription>Rekap bulanan, slip gaji, export laporan</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <RekapPayrollTable />
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+            import RekapPayrollTable from '@/components/admin/RekapPayrollTable';
             <TabsTrigger value="users" className="flex items-center">
               <Users className="w-4 h-4 mr-2" />
               Manajemen User
+            </TabsTrigger>
+            <TabsTrigger value="departments" className="flex items-center">
+              <Settings className="w-4 h-4 mr-2" />
+              Departemen
+            </TabsTrigger>
+            <TabsTrigger value="approval" className="flex items-center">
+              <Badge className="w-4 h-4 mr-2" />
+              Approval Cuti
             </TabsTrigger>
             <TabsTrigger value="location" className="flex items-center">
               <MapPin className="w-4 h-4 mr-2" />
               Lokasi Presensi
             </TabsTrigger>
           </TabsList>
+          {/* Departments Tab */}
+          <TabsContent value="departments">
+            <Card>
+              <CardHeader>
+                <CardTitle>Manajemen Departemen</CardTitle>
+                <CardDescription>Kelola data departemen</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DepartmentCrud />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+// Komponen CRUD Departemen
+import DepartmentCrud from '@/components/admin/DepartmentCrud';
+
+          {/* Approval Cuti Tab */}
+          <TabsContent value="approval">
+            <Card>
+              <CardHeader>
+                <CardTitle>Approval Cuti</CardTitle>
+                <CardDescription>Daftar pengajuan cuti yang menunggu persetujuan admin</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ApprovalCutiCrud />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+// Komponen Approval Cuti
+import ApprovalCutiCrud from '@/components/admin/ApprovalCutiCrud';
 
           {/* Users Tab */}
           <TabsContent value="users">
@@ -379,33 +456,103 @@ export default function AdminDashboard() {
                       {users.map((user) => (
                         <tr key={user.id} className="border-b">
                           <td className="p-2">{user.username}</td>
-                          <td className="p-2">{user.name}</td>
                           <td className="p-2">
-                            <Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
-                              {user.role}
-                            </Badge>
+                            {editingUser?.id === user.id ? (
+                              <input
+                                className="border rounded px-2 py-1 w-full"
+                                value={editUserData.name ?? user.name}
+                                onChange={e => setEditUserData({ ...editUserData, name: e.target.value })}
+                              />
+                            ) : (
+                              user.name
+                            )}
                           </td>
                           <td className="p-2">
-                            <Badge variant={user.isActive ? 'default' : 'destructive'}>
-                              {user.isActive ? 'Aktif' : 'Tidak Aktif'}
-                            </Badge>
+                            {editingUser?.id === user.id ? (
+                              <select
+                                className="border rounded px-2 py-1 w-full"
+                                value={editUserData.role ?? user.role}
+                                onChange={e => setEditUserData({ ...editUserData, role: e.target.value as 'ADMIN' | 'USER' })}
+                              >
+                                <option value="USER">User</option>
+                                <option value="ADMIN">Admin</option>
+                              </select>
+                            ) : (
+                              <Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
+                                {user.role}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="p-2">
+                            {editingUser?.id === user.id ? (
+                              <select
+                                className="border rounded px-2 py-1 w-full"
+                                value={editUserData.isActive ?? user.isActive}
+                                onChange={e => setEditUserData({ ...editUserData, isActive: e.target.value === 'true' })}
+                              >
+                                <option value="true">Aktif</option>
+                                <option value="false">Tidak Aktif</option>
+                              </select>
+                            ) : (
+                              <Badge variant={user.isActive ? 'default' : 'destructive'}>
+                                {user.isActive ? 'Aktif' : 'Tidak Aktif'}
+                              </Badge>
+                            )}
                           </td>
                           <td className="p-2">
                             <div className="flex space-x-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setEditingUser(user)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDeleteUser(user.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              {editingUser?.id === user.id ? (
+                                <>
+                                  <input
+                                    className="border rounded px-2 py-1 w-32"
+                                    type="password"
+                                    placeholder="Password baru (opsional)"
+                                    value={editUserData.password ?? ''}
+                                    onChange={e => setEditUserData({ ...editUserData, password: e.target.value })}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => {
+                                      handleUpdateUser(user.id, editUserData)
+                                      setEditingUser(null)
+                                      setEditUserData({})
+                                    }}
+                                  >
+                                    <Save className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingUser(null)
+                                      setEditUserData({})
+                                    }}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingUser(user)
+                                      setEditUserData({ name: user.name, role: user.role, isActive: user.isActive })
+                                    }}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleDeleteUser(user.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>

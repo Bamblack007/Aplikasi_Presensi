@@ -8,27 +8,51 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, User, Camera, CameraOff, Clock, MapPin, CheckCircle, XCircle } from 'lucide-react';
 
+// Tipe data
+interface User {
+  name: string;
+  // tambahkan field lain jika perlu
+}
+interface OfficeLocation {
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius: number;
+}
+interface Attendance {
+  id: string;
+  photoUrl: string;
+  type: 'CHECK_IN' | 'CHECK_OUT';
+  createdAt: string;
+  latitude: number;
+  longitude: number;
+}
+interface LatLng {
+  lat: number;
+  lng: number;
+}
+
 export default function UserPage() {
-  // State dan ref
+  // State dan ref dengan tipe
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isLoadingCamera, setIsLoadingCamera] = useState(false);
-  const [capturedImage, setCapturedImage] = useState('');
+  const [capturedImage, setCapturedImage] = useState<string>('');
   const [useFileInput, setUseFileInput] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
-  const [isWithinRadius, setIsWithinRadius] = useState(null);
+  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
+  const [isWithinRadius, setIsWithinRadius] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [attendances, setAttendances] = useState([]);
-  const [officeLocation, setOfficeLocation] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [attendances, setAttendances] = useState<Attendance[]>([]);
+  const [officeLocation, setOfficeLocation] = useState<OfficeLocation | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const streamRef = useRef(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Hooks
   useEffect(() => {
